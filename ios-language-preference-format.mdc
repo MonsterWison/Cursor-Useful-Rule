@@ -1,0 +1,212 @@
+# iOS 使用者手機語言偏好格式規則
+
+## 概述
+本文檔記錄iOS系統中 `Locale.preferredLanguages` 返回的語言偏好格式，以及如何正確解析和處理這些格式。
+
+## 核心API
+```swift
+let preferredLanguages = Locale.preferredLanguages
+```
+
+## 語言偏好格式類型
+
+### 1. 基本語言代碼格式
+- **格式**: `"語言代碼"`
+- **示例**: `"en"`, `"zh"`, `"ja"`, `"ko"`
+- **說明**: 純語言代碼，不包含地區信息
+
+### 2. 語言-地區格式 (最常見)
+- **格式**: `"語言代碼-地區代碼"`
+- **示例**: 
+  - `"en-US"` (美式英語)
+  - `"zh-CN"` (簡體中文)
+  - `"zh-TW"` (繁體中文)
+  - `"ja-JP"` (日語)
+  - `"ko-KR"` (韓語)
+  - `"fr-FR"` (法語)
+  - `"de-DE"` (德語)
+  - `"es-ES"` (西班牙語)
+
+### 3. 語言-腳本-地區格式
+- **格式**: `"語言代碼-腳本代碼-地區代碼"`
+- **示例**:
+  - `"zh-Hans-CN"` (簡體中文)
+  - `"zh-Hant-TW"` (繁體中文)
+  - `"zh-Hant-HK"` (香港繁體)
+  - `"sr-Cyrl-RS"` (塞爾維亞語西里爾文)
+  - `"sr-Latn-RS"` (塞爾維亞語拉丁文)
+
+### 4. 語言-變體格式
+- **格式**: `"語言代碼-變體代碼"`
+- **示例**:
+  - `"en-GB"` (英式英語)
+  - `"pt-BR"` (巴西葡萄牙語)
+  - `"pt-PT"` (葡萄牙葡萄牙語)
+
+### 5. 語言-腳本格式
+- **格式**: `"語言代碼-腳本代碼"`
+- **示例**:
+  - `"zh-Hans"` (簡體中文)
+  - `"zh-Hant"` (繁體中文)
+
+## 實際設備語言偏好列表示例
+
+### 香港用戶設置 (簡體中文主要)
+```
+["zh-Hans-HK", "ja-HK", "ko-HK", "zh-Hant-HK", "en-HK"]
+```
+
+### 香港用戶設置 (日文主要)
+```
+["ja-HK", "zh-Hans-HK", "ko-HK", "zh-Hant-HK", "en-HK"]
+```
+
+### 香港用戶設置 (韓文主要)
+```
+["ko-HK", "zh-Hans-HK", "ja-HK", "zh-Hant-HK", "en-HK"]
+```
+
+### 美國用戶設置 (英文主要)
+```
+["en-US", "es-US", "zh-Hans-US", "ja-US", "ko-US"]
+```
+
+### 日本用戶設置 (日文主要)
+```
+["ja-JP", "en-JP", "zh-Hans-JP", "ko-JP"]
+```
+
+### 韓國用戶設置 (韓文主要)
+```
+["ko-KR", "en-KR", "ja-KR", "zh-Hans-KR"]
+```
+
+## 解析方法
+
+### 1. 使用 Locale API 解析
+```swift
+for languageCode in preferredLanguages {
+    let locale = Locale(identifier: languageCode)
+    let language = locale.language.languageCode?.identifier ?? "en"
+    let region = locale.region?.identifier ?? "US"
+    let script = locale.script?.identifier
+    
+    print("語言: \(language), 地區: \(region), 腳本: \(script ?? "無")")
+}
+```
+
+### 2. 手動解析格式
+```swift
+func parseLanguageCode(_ code: String) -> (language: String, region: String?, script: String?) {
+    let components = code.split(separator: "-")
+    
+    let language = String(components[0])
+    let region = components.count > 1 ? String(components.last!) : nil
+    let script = components.count > 2 ? String(components[1]) : nil
+    
+    return (language, region, script)
+}
+```
+
+## 常見語言代碼映射
+
+### 中文變體
+- `zh-Hans` / `zh-CN` → 簡體中文
+- `zh-Hant` / `zh-TW` → 繁體中文
+- `zh-HK` → 香港繁體 (實際上是 zh-Hant-HK)
+
+### 英語變體
+- `en-US` → 美式英語
+- `en-GB` → 英式英語
+- `en-CA` → 加拿大英語
+- `en-AU` → 澳大利亞英語
+
+### 日語變體
+- `ja-JP` → 日語
+- `ja` → 日語 (純語言代碼)
+
+### 韓語變體
+- `ko-KR` → 韓語
+- `ko` → 韓語 (純語言代碼)
+
+## 處理策略
+
+### 1. 優先級處理
+1. 檢查第一個語言偏好
+2. 提取純語言代碼 (如 `zh`, `ja`, `ko`)
+3. 忽略地區和腳本信息
+4. 如果第一個不支持，檢查下一個
+
+### 2. 回退策略
+```swift
+// 支持的語言列表
+let supportedLanguages = ["en", "zh", "ja", "ko", "fr", "de", "es"]
+
+// 檢查邏輯
+for languageCode in preferredLanguages {
+    let locale = Locale(identifier: languageCode)
+    let language = locale.language.languageCode?.identifier ?? "en"
+    
+    if supportedLanguages.contains(language) {
+        return language // 找到支持的語言
+    }
+}
+
+return "en" // 默認回退到英語
+```
+
+### 3. 別名映射
+```swift
+let languageAliases = [
+    "zh-Hans": "zh-CN",
+    "zh-Hant": "zh-TW", 
+    "zh-HK": "zh-CN",  // 根據用戶偏好決定
+    "en-GB": "en-US",
+    "ja-JP": "ja",
+    "ko-KR": "ko"
+]
+```
+
+## 注意事項
+
+### 1. 地區影響
+- 用戶的地區設置會影響語言偏好列表
+- 同一語言在不同地區可能有不同的優先級
+- 例如：香港用戶的 `zh-Hans-HK` vs 大陸用戶的 `zh-Hans-CN`
+
+### 2. 腳本區分
+- 中文有簡體 (Hans) 和繁體 (Hant) 兩種腳本
+- 某些語言有多種書寫系統
+- 需要正確識別腳本以提供合適的內容
+
+### 3. 動態變化
+- 用戶可以隨時更改語言偏好
+- 應用需要監聽語言變化並即時更新
+- 建議在 `onAppear` 時重新檢測語言偏好
+
+### 4. 測試建議
+- 在不同地區設置下測試
+- 使用不同的語言組合
+- 驗證回退邏輯是否正確
+- 確保UI能即時響應語言變化
+
+## 最佳實踐
+
+1. **簡化檢測邏輯**: 只關注語言代碼，忽略地區和腳本
+2. **提供回退機制**: 確保總有可用的語言選項
+3. **即時更新**: 監聽語言變化並即時更新UI
+4. **測試覆蓋**: 在不同語言設置下全面測試
+5. **文檔記錄**: 記錄所有支持的語言和格式
+
+## 相關API參考
+
+- `Locale.preferredLanguages`: 獲取語言偏好列表
+- `Locale.current`: 獲取當前地區設置
+- `Locale.language.languageCode`: 提取語言代碼
+- `Locale.region`: 提取地區代碼
+- `Locale.script`: 提取腳本代碼
+- `Bundle.preferredLocalizations`: 獲取Bundle支持的語言
+description:
+globs:
+alwaysApply: true
+---
